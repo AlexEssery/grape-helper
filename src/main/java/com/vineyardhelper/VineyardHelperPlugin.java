@@ -2,6 +2,7 @@ package com.vineyardhelper;
 
 import com.google.inject.Provides;
 import net.runelite.api.Client;
+import net.runelite.api.Tile;
 import net.runelite.api.GraphicsObject;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -37,6 +38,9 @@ public class VineyardHelperPlugin extends Plugin {
 
     @Inject
     private OverlayManager overlayManager;
+
+    private static final int TARGET_X = 1370;
+    private static final int TARGET_Y = 2915;
 
     private final Set<GraphicsObject> highlightedObjects = new HashSet<>();
 
@@ -89,21 +93,25 @@ public class VineyardHelperPlugin extends Plugin {
             full = false;
         }
     }
+
+    private boolean isPlayerOnTargetTiles() {
+        // Check if player is adjacent to Vineyard foreman
+        int X = client.getLocalPlayer().getWorldLocation().getX();
+        int Y = client.getLocalPlayer().getWorldLocation().getY();
+        return Math.abs(X - TARGET_X) == 1 || Math.abs(Y - TARGET_Y) == 1;
+    }
+
     @Subscribe
     public void onGameTick(GameTick event) {
         // Check for NPC dialogue widget using group and child IDs
         Widget npcDialogueWidget = client.getWidget(ComponentID.DIALOG_NPC_TEXT);
         if (npcDialogueWidget != null) {
-            String currentDialogue = npcDialogueWidget.getText();
-
-            // Only process if dialogue has changed
-            if (!currentDialogue.equals(lastDialogue)) {
+            if (isPlayerOnTargetTiles()) {
+                String currentDialogue = npcDialogueWidget.getText();
                 processDialogue(currentDialogue);
-                lastDialogue = currentDialogue;
             }
         }
     }
-    private String lastDialogue = "";
 
     private void processDialogue(String dialogue) {
         // Check for dialogue corresponding to handing in barrel
