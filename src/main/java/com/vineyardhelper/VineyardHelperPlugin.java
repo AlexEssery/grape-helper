@@ -1,10 +1,7 @@
 package com.vineyardhelper;
 
-import com.google.inject.Provides;
-import net.runelite.api.Client;
-import net.runelite.api.Tile;
-import net.runelite.api.GraphicsObject;
-import net.runelite.client.config.ConfigManager;
+import net.runelite.api.*;
+import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.api.events.GraphicsObjectCreated;
 import net.runelite.client.plugins.Plugin;
@@ -14,11 +11,15 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.GameStateChanged;
 
 
 import javax.inject.Inject;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+
+import static net.runelite.api.ItemID.*;
 
 
 @PluginDescriptor(
@@ -31,9 +32,6 @@ public class VineyardHelperPlugin extends Plugin {
     private Client client;
 
     @Inject
-    private VineyardHelperConfig config;
-
-    @Inject
     private VineyardHelperOverlay overlay;
 
     @Inject
@@ -41,25 +39,56 @@ public class VineyardHelperPlugin extends Plugin {
 
     private static final int TARGET_X = 1370;
     private static final int TARGET_Y = 2915;
+    private static final int object_id = 3005;
+    private static final int barrel_id = 30037;
 
     private final Set<GraphicsObject> highlightedObjects = new HashSet<>();
 
     public boolean full = false;
-
-    @Provides
-    VineyardHelperConfig provideConfig(ConfigManager configManager) {
-        return configManager.getConfig(VineyardHelperConfig.class);
-    }
+    public boolean barrel = false;
 
     @Override
     protected void startUp() {
         overlayManager.add(overlay);
+
+    }
+
+    @Subscribe
+    public void onGameStateChanged(GameStateChanged event) {
+        // Check for inventory items when the player logs in
+        if (event.getGameState() == GameState.LOGGED_IN) {
+            checkForItemInInventory();
+        }
     }
 
     @Override
     protected void shutDown() {
         overlayManager.remove(overlay);
         highlightedObjects.clear();
+        full = false;
+    }
+
+    @Subscribe
+    public void onItemContainerChanged(ItemContainerChanged event) {
+        if (event.getContainerId() == InventoryID.INVENTORY.getId()) {
+            checkForItemInInventory();
+        }
+    }
+
+    private void checkForItemInInventory() {
+        barrel = false;
+        Arrays.stream(client.getItemContainer(InventoryID.INVENTORY).getItems())
+                .forEach(item -> {
+                    if (item.getId() == barrel_id) {
+                        if (!barrel) {
+                            overlayManager.add(overlay);
+                            barrel = true;
+                        }
+                    }
+                });
+        if (!barrel) {
+            overlayManager.remove(overlay);
+        }
     }
 
     @Subscribe
@@ -67,7 +96,7 @@ public class VineyardHelperPlugin extends Plugin {
         GraphicsObject graphicsObject = event.getGraphicsObject();
         int objectId = graphicsObject.getId();
 
-        if (config.objectIds() == objectId) {
+        if (object_id == objectId) {
             highlightedObjects.add(graphicsObject);
         }
     }
@@ -84,6 +113,10 @@ public class VineyardHelperPlugin extends Plugin {
         if (message.contains("Your grape barrel is now full")) {
             full = true;
             }
+
+        if (message.contains("Your grape barrel is already full")) {
+            full = true;
+        }
 
         if (message.contains("The grape barrel is empty")) {
             full = false;
